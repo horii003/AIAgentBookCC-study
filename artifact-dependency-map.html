@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>成果物依存関係 鳥瞰図</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', 'Meiryo', sans-serif;
+  background: #0f1117;
+  color: #e0e0e0;
+  padding: 20px;
+  min-height: 100vh;
+}
+h1 {
+  text-align: center;
+  color: #7eb8f7;
+  font-size: 1.3rem;
+  margin-bottom: 4px;
+}
+.subtitle {
+  text-align: center;
+  color: #666;
+  font-size: 0.78rem;
+  margin-bottom: 20px;
+}
+#canvas-wrap {
+  width: 100%;
+  overflow: auto;
+  background: #161b22;
+  border-radius: 10px;
+}
+svg {
+  display: block;
+}
+.phase-label {
+  font-size: 13px;
+  font-weight: bold;
+  fill: #fff;
+}
+.phase-sub {
+  font-size: 10px;
+  fill: #aaa;
+}
+.node-rect {
+  rx: 5;
+  cursor: default;
+}
+.node-text {
+  font-size: 10px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+  fill: #e8e8e8;
+}
+.edge {
+  fill: none;
+  stroke-width: 1.2;
+  opacity: 0.55;
+}
+.edge-bridge {
+  fill: none;
+  stroke-width: 2;
+  opacity: 0.85;
+  stroke-dasharray: none;
+}
+.legend { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin-top: 16px; }
+.legend-item { display: flex; align-items: center; gap: 7px; font-size: 0.78rem; color: #aaa; }
+.legend-box { width: 14px; height: 14px; border-radius: 3px; }
+.note { text-align: center; color: #555; font-size: 0.73rem; margin-top: 10px; }
+</style>
+</head>
+<body>
+<h1>開発ワークフロー 成果物依存関係 鳥瞰図</h1>
+<p class="subtitle">artifact-catalog.yaml より生成 ｜ 太線＝フェーズ間ブリッジ依存 / 細線＝フェーズ内依存</p>
+<div id="canvas-wrap"></div>
+<div class="legend" id="legend"></div>
+<p class="note">ノードにホバーで依存関係をハイライト表示</p>
+<script>
+const PHASES = [
+  { id:'P1', label:'Phase 01', sub:'業務要件定義', color:'#1a4060', stroke:'#4a9eca', prefix:'BR' },
+  { id:'P2', label:'Phase 02', sub:'システム要件定義', color:'#0d3520', stroke:'#3aba6a', prefix:'SR' },
+  { id:'P3', label:'Phase 03', sub:'システム設計', color:'#302e08', stroke:'#c8c030', prefix:'SD' },
+  { id:'P4', label:'Phase 04', sub:'基本設計', color:'#28103a', stroke:'#9040c8', prefix:'BD' },
+  { id:'P5', label:'Phase 05', sub:'詳細設計', color:'#380d0d', stroke:'#c83030', prefix:'DD' },
+  { id:'P7', label:'Phase 06', sub:'生成コード (src/)', color:'#0f2218', stroke:'#28d980', prefix:'SC' },
+];
+
+const NODES = [
+  // BR
+  {id:'BR01',ph:'P1',label:'BR-01\n業務要件一覧'},
+  {id:'BR02',ph:'P1',label:'BR-02\n業務一覧'},
+  {id:'BR03',ph:'P1',label:'BR-03\n役割分担定義'},
+  {id:'BR04',ph:'P1',label:'BR-04\n業務ルール定義\n判断基準定義'},
+  {id:'BR05',ph:'P1',label:'BR-05\n業務プロセス定義'},
+  {id:'BR06',ph:'P1',label:'BR-06\n業務データ定義'},
+  {id:'BR07',ph:'P1',label:'BR-07\nユースケース定義'},
+  // SR
+  {id:'SR01',ph:'P2',label:'SR-01\nシステム構成図'},
+  {id:'SR02',ph:'P2',label:'SR-02\nシステム構成要素一覧'},
+  {id:'SR03',ph:'P2',label:'SR-03\n機能要件一覧'},
+  {id:'SR04',ph:'P2',label:'SR-04\nエージェント一覧'},
+  {id:'SR05',ph:'P2',label:'SR-05\n自律度・権限定義'},
+  {id:'SR06',ph:'P2',label:'SR-06\nエージェント間連携定義'},
+  {id:'SR07',ph:'P2',label:'SR-07\n根拠提示方針'},
+  {id:'SR08',ph:'P2',label:'SR-08\nアウトプット一覧'},
+  {id:'SR09',ph:'P2',label:'SR-09\n会話フロー一覧'},
+  {id:'SR10',ph:'P2',label:'SR-10\nデータ一覧'},
+  {id:'SR11',ph:'P2',label:'SR-11\nテーブル一覧'},
+  {id:'SR12',ph:'P2',label:'SR-12\nナレッジ一覧'},
+  {id:'SR13',ph:'P2',label:'SR-13\nガードレール要件定義'},
+  {id:'SR14',ph:'P2',label:'SR-14\nログ出力要件定義'},
+  {id:'SR15',ph:'P2',label:'SR-15\n外部システム機能一覧'},
+  {id:'SR16',ph:'P2',label:'SR-16\n業務ルール定義'},
+  {id:'SR17',ph:'P2',label:'SR-17\n機能ツール一覧'},
+  {id:'SR18',ph:'P2',label:'SR-18\n画面一覧'},
+  {id:'SR19',ph:'P2',label:'SR-19\n評価指標一覧'},
+  // SD
+  {id:'SD01',ph:'P3',label:'SD-01\nシステム基本情報'},
+  {id:'SD02',ph:'P3',label:'SD-02\nマルチエージェント連携設計'},
+  {id:'SD03',ph:'P3',label:'SD-03\nセッション管理方針'},
+  {id:'SD04',ph:'P3',label:'SD-04\n例外処理方針'},
+  {id:'SD05',ph:'P3',label:'SD-05\n実行制御方針'},
+  {id:'SD06',ph:'P3',label:'SD-06\n共通設定方針'},
+  {id:'SD07',ph:'P3',label:'SD-07\nバリデーション方針'},
+  {id:'SD08',ph:'P3',label:'SD-08\n評価テスト方式設計'},
+  {id:'SD09',ph:'P3',label:'SD-09\nログ出力方式設計'},
+  {id:'SD10',ph:'P3',label:'SD-10\nガードレール処理方式設計'},
+  // BD
+  {id:'BD01',ph:'P4',label:'BD-01\nツール基本設計'},
+  {id:'BD02',ph:'P4',label:'BD-02\nデータモデル基本設計'},
+  {id:'BD03',ph:'P4',label:'BD-03\nエージェント基本設計'},
+  {id:'BD04',ph:'P4',label:'BD-04\nハンドラー基本設計'},
+  {id:'BD05',ph:'P4',label:'BD-05\nセッションマネージャ基本設計'},
+  // DD
+  {id:'DD01',ph:'P5',label:'DD-01\nツール詳細設計'},
+  {id:'DD02',ph:'P5',label:'DD-02\nエージェント詳細設計'},
+  {id:'DD03',ph:'P5',label:'DD-03\nハンドラー詳細設計'},
+  {id:'DD04',ph:'P5',label:'DD-04\nデータモデル詳細設計'},
+  {id:'DD05',ph:'P5',label:'DD-05\nセッションマネージャ詳細設計'},
+  {id:'DD06',ph:'P5',label:'DD-06\nガードレール詳細設計'},
+  {id:'DD07',ph:'P5',label:'DD-07\nシステムプロンプト詳細設計'},
+  {id:'DD08',ph:'P5',label:'DD-08\nナレッジ・業務ルール詳細設計'},
+  {id:'DD09',ph:'P5',label:'DD-09\n評価テスト詳細設計'},
+  // SC: 生成ソースコード (src/)
+  {id:'SC01',ph:'P7',label:'models/\ndata_models.py'},
+  {id:'SC02',ph:'P7',label:'config/\nmodel_config.py'},
+  {id:'SC15',ph:'P7',label:'config/\nsettings.py'},
+  {id:'SC03',ph:'P7',label:'handlers/\nerror_handler.py'},
+  {id:'SC04',ph:'P7',label:'handlers/\nloop_control_hook.py'},
+  {id:'SC16',ph:'P7',label:'handlers/\nhuman_approval_hook.py'},
+  {id:'SC06',ph:'P7',label:'session/\nsession_manager.py'},
+  {id:'SC07',ph:'P7',label:'prompt/\nprompt_orchestrator.py'},
+  {id:'SC08',ph:'P7',label:'prompt/\nprompt_specialist_*.py'},
+  {id:'SC09',ph:'P7',label:'knowledge/\n*_policies.py'},
+  {id:'SC10',ph:'P7',label:'tools/\n*_tools.py'},
+  {id:'SC17',ph:'P7',label:'agents/\nbase_agent.py'},
+  {id:'SC11',ph:'P7',label:'agents/\norchestrator_agent.py'},
+  {id:'SC12',ph:'P7',label:'agents/\nspecialist_*_agent.py'},
+  {id:'SC13',ph:'P7',label:'main.py'},
+  {id:'SC14',ph:'P7',label:'data/\n*.json'},
+  {id:'SC_grd',ph:'P7',label:'guardrails/\nguardrails_\ncloudformation.yaml'},
+  {id:'SC_eval',ph:'P7',label:'evals/\neval_*.py\n(IG-03)'},
+];
+
+const EDGES = [
+  // BR内部
+  ['BR01','BR02',false],['BR01','BR03',false],['BR01','BR04',false],
+  ['BR02','BR03',false],['BR02','BR04',false],
+  ['BR03','BR05',false],['BR04','BR05',false],['BR01','BR05',false],['BR02','BR05',false],
+  ['BR05','BR06',false],['BR01','BR06',false],['BR02','BR06',false],
+  ['BR04','BR07',false],['BR05','BR07',false],['BR06','BR07',false],
+  // BR→SR bridge
+  ['BR01','SR03',true],['BR07','SR03',true],['BR07','SR04',true],
+  ['BR07','SR09',true],['BR04','SR16',true],['BR06','SR10',true],
+  ['BR03','SR01',true],['BR07','SR01',true],['BR07','SR02',true],
+  // SR内部
+  ['SR02','SR03',false],['SR03','SR04',false],['SR03','SR16',false],
+  ['SR04','SR05',false],['SR16','SR05',false],
+  ['SR04','SR06',false],['SR05','SR06',false],
+  ['SR04','SR07',false],['SR04','SR08',false],
+  ['SR03','SR10',false],['SR03','SR11',false],
+  ['SR04','SR12',false],['SR16','SR12',false],
+  ['SR04','SR13',false],['SR16','SR13',false],
+  ['SR04','SR14',false],['SR06','SR14',false],['SR16','SR14',false],
+  ['SR04','SR15',false],['SR05','SR15',false],
+  ['SR04','SR17',false],['SR15','SR17',false],['SR16','SR17',false],
+  ['SR08','SR18',false],
+  ['SR04','SR19',false],['SR05','SR19',false],['SR09','SR19',false],['SR16','SR19',false],
+  // SR→SD bridge
+  ['SR01','SD01',true],['SR03','SD01',true],['SR04','SD01',true],
+  ['SR04','SD02',true],['SR06','SD02',true],['SR09','SD02',true],['SR05','SD02',true],
+  ['SR09','SD03',true],['SR13','SD03',true],['SR14','SD03',true],
+  ['SR13','SD04',true],['SR15','SD04',true],
+  ['SR04','SD05',true],['SR13','SD05',true],['SR14','SD05',true],
+  ['SR17','SD06',true],['SR10','SD07',true],['SR13','SD07',true],['SR16','SD07',true],
+  ['SR14','SD09',true],['SR13','SD10',true],['SR16','SD10',true],['SR19','SD08',true],
+  // SD内部
+  ['SD01','SD02',false],['SD02','SD03',false],['SD03','SD04',false],
+  ['SD04','SD05',false],['SD05','SD06',false],['SD06','SD07',false],
+  ['SD01','SD09',false],['SD04','SD09',false],
+  ['SD01','SD10',false],['SD04','SD10',false],
+  ['SD02','SD08',false],['SD04','SD08',false],['SD05','SD08',false],
+  // SD→BD bridge
+  ['SD01','BD01',true],['SD04','BD01',true],['SD07','BD01',true],
+  ['SD02','BD02',true],['SD07','BD02',true],
+  ['SD01','BD03',true],['SD02','BD03',true],['SD03','BD03',true],['SD04','BD03',true],['SD06','BD03',true],
+  ['SD04','BD04',true],['SD05','BD04',true],['SD06','BD04',true],
+  ['SD02','BD05',true],['SD03','BD05',true],['SD06','BD05',true],
+  // BD内部
+  ['BD01','BD02',false],['BD01','BD03',false],['BD03','BD04',false],
+  // BD→DD bridge
+  ['BD01','DD01',true],['BD02','DD01',true],
+  ['BD03','DD02',true],['BD04','DD02',true],['BD02','DD02',true],
+  ['BD04','DD03',true],['BD02','DD04',true],['BD05','DD05',true],
+  ['SD10','DD06',true],['SD06','DD07',true],
+  // DD内部
+  ['DD01','DD02',false],['DD01','DD03',false],['DD01','DD04',false],
+  ['DD04','DD05',false],
+  ['DD02','DD06',false],['DD02','DD07',false],
+  ['DD07','DD08',false],['DD02','DD08',false],
+  ['DD01','DD09',false],['DD02','DD09',false],['DD03','DD09',false],
+  ['DD04','DD09',false],['DD05','DD09',false],['DD06','DD09',false],
+  ['DD07','DD09',false],['DD08','DD09',false],
+  // DD → SC bridge (詳細設計 → 生成コード)
+  // DD-01 ツール詳細設計
+  ['DD01','SC10',true],
+  // DD-02 エージェント詳細設計
+  ['DD02','SC02',true],['DD02','SC15',true],['DD02','SC17',true],
+  ['DD02','SC11',true],['DD02','SC12',true],['DD02','SC13',true],
+  // DD-03 ハンドラー詳細設計
+  ['DD03','SC03',true],['DD03','SC04',true],['DD03','SC16',true],
+  // DD-04 データモデル詳細設計
+  ['DD04','SC01',true],['DD04','SC14',true],
+  // DD-05 セッションマネージャ詳細設計
+  ['DD05','SC06',true],['DD05','SC13',true],
+  // DD-06 ガードレール詳細設計
+  ['DD06','SC_grd',true],
+  // DD-07 システムプロンプト詳細設計
+  ['DD07','SC07',true],['DD07','SC08',true],
+  // DD-08 ナレッジ・業務ルール詳細設計
+  ['DD08','SC09',true],
+  // DD-09 評価テスト詳細設計
+  ['DD09','SC_eval',true],
+  // SC 内部依存 (実装順・import関係)
+  ['SC01','SC02',false],
+  ['SC02','SC15',false],
+  ['SC01','SC03',false],
+  ['SC03','SC04',false],
+  ['SC16','SC04',false],  // human_approval_hook imports console_approval_adapter
+  ['SC04','SC17',false],
+  ['SC15','SC17',false],
+  ['SC01','SC06',false],
+  ['SC02','SC07',false],
+  ['SC02','SC08',false],
+  ['SC01','SC09',false],
+  ['SC01','SC10',false],
+  ['SC14','SC10',false],  // tools reads data files
+  ['SC17','SC11',false],
+  ['SC07','SC11',false],
+  ['SC09','SC11',false],
+  ['SC10','SC11',false],
+  ['SC17','SC12',false],
+  ['SC08','SC12',false],
+  ['SC09','SC12',false],
+  ['SC10','SC12',false],
+  ['SC11','SC13',false],
+  ['SC12','SC13',false],
+  ['SC06','SC13',false],
+  ['SC03','SC13',false],
+];
+
+// ---- Layout ----
+const NODE_W = 120, NODE_H = 37, PAD = 10, HEADER = 44;
+const COL_GAP = 100; // gap between phases
+
+// assign column (phase index)
+const phaseIndex = {};
+PHASES.forEach((p,i) => phaseIndex[p.id] = i);
+
+// group nodes by phase
+const byPhase = {};
+PHASES.forEach(p => { byPhase[p.id] = []; });
+NODES.forEach(n => byPhase[n.ph].push(n));
+
+// compute phase column x positions
+const phaseX = [];
+let cx = PAD;
+PHASES.forEach((p,i) => {
+  phaseX[i] = cx;
+  cx += NODE_W + PAD*2 + COL_GAP;
+});
+const SVG_W = cx - COL_GAP + PAD;
+
+// assign y positions within each phase
+const maxRows = Math.max(...PHASES.map(p => byPhase[p.id].length));
+const SVG_H = HEADER + maxRows * (NODE_H + PAD) + PAD * 2;
+
+const nodePos = {};
+PHASES.forEach((p, pi) => {
+  const nodes = byPhase[p.id];
+  const x0 = phaseX[pi] + PAD;
+  nodes.forEach((n, ni) => {
+    const x = x0;
+    const y = HEADER + PAD + ni * (NODE_H + PAD);
+    nodePos[n.id] = { x, y, cx: x + NODE_W/2, cy: y + NODE_H/2 };
+  });
+});
+
+// ---- Render SVG ----
+const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+svg.setAttribute('width', SVG_W);
+svg.setAttribute('height', SVG_H);
+svg.setAttribute('viewBox', `0 0 ${SVG_W} ${SVG_H}`);
+document.getElementById('canvas-wrap').appendChild(svg);
+
+// defs (arrowheads)
+const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+const mkArrow = (id, color, size=6) => {
+  const m = document.createElementNS('http://www.w3.org/2000/svg','marker');
+  m.setAttribute('id', id);
+  m.setAttribute('markerWidth', size);
+  m.setAttribute('markerHeight', size);
+  m.setAttribute('refX', size-1);
+  m.setAttribute('refY', size/2);
+  m.setAttribute('orient', 'auto');
+  const poly = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+  poly.setAttribute('points', `0 0, ${size} ${size/2}, 0 ${size}`);
+  poly.setAttribute('fill', color);
+  m.appendChild(poly);
+  defs.appendChild(m);
+};
+mkArrow('arr-inner','#666',6);
+mkArrow('arr-bridge','#aac4f0',8);
+svg.appendChild(defs);
+
+// phase backgrounds + labels
+PHASES.forEach((p, pi) => {
+  const cnt = byPhase[p.id].length;
+  const x = phaseX[pi];
+  const w = NODE_W + PAD*2;
+  const h = HEADER + cnt * (NODE_H + PAD) + PAD;
+
+  const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+  rect.setAttribute('x', x); rect.setAttribute('y', 0);
+  rect.setAttribute('width', w); rect.setAttribute('height', h);
+  rect.setAttribute('rx', 8);
+  rect.setAttribute('fill', p.color);
+  rect.setAttribute('stroke', p.stroke);
+  rect.setAttribute('stroke-width', 1.5);
+  svg.appendChild(rect);
+
+  const t1 = document.createElementNS('http://www.w3.org/2000/svg','text');
+  t1.setAttribute('x', x + w/2); t1.setAttribute('y', 18);
+  t1.setAttribute('text-anchor','middle');
+  t1.setAttribute('class','phase-label');
+  t1.setAttribute('fill', p.stroke);
+  t1.textContent = p.label;
+  svg.appendChild(t1);
+
+  const t2 = document.createElementNS('http://www.w3.org/2000/svg','text');
+  t2.setAttribute('x', x + w/2); t2.setAttribute('y', 34);
+  t2.setAttribute('text-anchor','middle');
+  t2.setAttribute('class','phase-sub');
+  t2.textContent = p.sub;
+  svg.appendChild(t2);
+});
+
+// edges layer (behind nodes)
+const edgeLayer = document.createElementNS('http://www.w3.org/2000/svg','g');
+edgeLayer.setAttribute('id','edges');
+svg.appendChild(edgeLayer);
+
+const edgeEls = {};
+EDGES.forEach(([src,tgt,bridge]) => {
+  const s = nodePos[src], t = nodePos[tgt];
+  if(!s || !t) return;
+  const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+
+  // cubic bezier
+  const dx = t.cx - s.cx;
+  const mx = s.cx + dx * 0.5;
+  const d = `M ${s.cx + NODE_W/2} ${s.cy} C ${mx + NODE_W/2*0.4} ${s.cy}, ${mx - NODE_W/2*0.4} ${t.cy}, ${t.cx - NODE_W/2} ${t.cy}`;
+
+  path.setAttribute('d', d);
+  path.setAttribute('class', bridge ? 'edge-bridge' : 'edge');
+  path.setAttribute('stroke', bridge ? '#6090d8' : '#555');
+  path.setAttribute('marker-end', bridge ? 'url(#arr-bridge)' : 'url(#arr-inner)');
+  path.setAttribute('data-src', src);
+  path.setAttribute('data-tgt', tgt);
+  edgeLayer.appendChild(path);
+  edgeEls[`${src}>${tgt}`] = path;
+});
+
+// node layer
+const nodeLayer = document.createElementNS('http://www.w3.org/2000/svg','g');
+nodeLayer.setAttribute('id','nodes');
+svg.appendChild(nodeLayer);
+
+const nodeEls = {};
+NODES.forEach(n => {
+  const pos = nodePos[n.id];
+  const phase = PHASES.find(p => p.id === n.ph);
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.setAttribute('data-id', n.id);
+  g.style.cursor = 'pointer';
+
+  const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+  rect.setAttribute('x', pos.x); rect.setAttribute('y', pos.y);
+  rect.setAttribute('width', NODE_W); rect.setAttribute('height', NODE_H);
+  rect.setAttribute('rx', 5);
+  rect.setAttribute('fill', '#1e2535');
+  rect.setAttribute('stroke', phase.stroke);
+  rect.setAttribute('stroke-width', 1.2);
+  g.appendChild(rect);
+
+  const lines = n.label.split('\n');
+  const lineH = 13;
+  const totalH = lines.length * lineH;
+  lines.forEach((line, li) => {
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x', pos.cx);
+    t.setAttribute('y', pos.cy - totalH/2 + li * lineH + lineH/2);
+    t.setAttribute('class','node-text');
+    t.textContent = line;
+    g.appendChild(t);
+  });
+
+  g.addEventListener('mouseenter', () => highlightNode(n.id));
+  g.addEventListener('mouseleave', resetHighlight);
+  nodeLayer.appendChild(g);
+  nodeEls[n.id] = { g, rect };
+});
+
+// highlight
+function highlightNode(id) {
+  const related = new Set([id]);
+  const incoming = [], outgoing = [];
+  EDGES.forEach(([s,t]) => {
+    if(t === id) { related.add(s); incoming.push(`${s}>${t}`); }
+    if(s === id) { related.add(t); outgoing.push(`${s}>${t}`); }
+  });
+
+  // dim all
+  Object.values(nodeEls).forEach(({rect}) => { rect.setAttribute('opacity','0.25'); });
+  Object.values(edgeEls).forEach(e => { e.setAttribute('opacity','0.08'); });
+
+  // highlight related nodes
+  related.forEach(nid => {
+    if(nodeEls[nid]) nodeEls[nid].rect.setAttribute('opacity','1');
+  });
+
+  // highlight edges
+  incoming.forEach(k => { if(edgeEls[k]) { edgeEls[k].setAttribute('opacity','1'); edgeEls[k].setAttribute('stroke','#f0a040'); }});
+  outgoing.forEach(k => { if(edgeEls[k]) { edgeEls[k].setAttribute('opacity','1'); edgeEls[k].setAttribute('stroke','#40c0f0'); }});
+  // self
+  nodeEls[id].rect.setAttribute('stroke-width','2.5');
+}
+
+function resetHighlight() {
+  Object.values(nodeEls).forEach(({rect}) => { rect.setAttribute('opacity','1'); rect.setAttribute('stroke-width','1.2'); });
+  Object.values(edgeEls).forEach(e => { e.setAttribute('opacity', e.classList.contains('edge-bridge') ? '0.85' : '0.55'); });
+  EDGES.forEach(([s,t,bridge]) => {
+    const k = `${s}>${t}`;
+    if(edgeEls[k]) edgeEls[k].setAttribute('stroke', bridge ? '#6090d8' : '#555');
+  });
+}
+
+// Legend
+const legendEl = document.getElementById('legend');
+PHASES.forEach(p => {
+  const item = document.createElement('div');
+  item.className = 'legend-item';
+  const box = document.createElement('div');
+  box.className = 'legend-box';
+  box.style.background = p.color;
+  box.style.border = `2px solid ${p.stroke}`;
+  const label = document.createElement('span');
+  label.textContent = `${p.label}: ${p.sub} (${p.prefix})`;
+  item.appendChild(box);
+  item.appendChild(label);
+  legendEl.appendChild(item);
+});
+</script>
+</body>
+</html>
