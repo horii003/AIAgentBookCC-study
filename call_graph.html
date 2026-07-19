@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>AIエージェント 呼び出し関係図</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 18px;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin-bottom: 6px;
+    letter-spacing: 0.02em;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 28px;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #94a3b8;
+  }
+  .legend-dot {
+    width: 12px; height: 12px; border-radius: 3px;
+  }
+
+  /* SVG container */
+  .diagram-wrap {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: 82vh;
+  }
+  svg {
+    display: block;
+    margin: 0 auto;
+  }
+
+  /* Node styles */
+  .node-entry rect   { fill: #1e3a5f; stroke: #3b82f6; stroke-width: 2; rx: 6; }
+  .node-agent rect   { fill: #1a2e1a; stroke: #22c55e; stroke-width: 1.5; rx: 6; }
+  .node-tool rect    { fill: #2e1a1a; stroke: #f97316; stroke-width: 1.5; rx: 6; }
+  .node-handler rect { fill: #2a1a2e; stroke: #a855f7; stroke-width: 1.5; rx: 6; }
+  .node-config rect  { fill: #1e2a2e; stroke: #06b6d4; stroke-width: 1.5; rx: 6; }
+  .node-knowledge rect { fill: #2e2a1a; stroke: #eab308; stroke-width: 1.5; rx: 6; }
+  .node-model rect   { fill: #1a1a2e; stroke: #818cf8; stroke-width: 1.5; rx: 6; }
+  .node-session rect { fill: #1e2a1e; stroke: #34d399; stroke-width: 1.5; rx: 6; }
+  .node-prompt rect  { fill: #2e1e2e; stroke: #f472b6; stroke-width: 1.5; rx: 6; }
+
+  .node-label {
+    font-size: 11px;
+    font-weight: 600;
+    fill: #f1f5f9;
+    dominant-baseline: middle;
+    text-anchor: middle;
+    pointer-events: none;
+  }
+  .node-sublabel {
+    font-size: 9.5px;
+    fill: #94a3b8;
+    dominant-baseline: middle;
+    text-anchor: middle;
+    pointer-events: none;
+  }
+
+  /* Arrows */
+  .arrow-main   { stroke: #3b82f6; stroke-width: 1.8; fill: none; marker-end: url(#arrow-blue); }
+  .arrow-tool   { stroke: #f97316; stroke-width: 1.5; fill: none; marker-end: url(#arrow-orange); stroke-dasharray: none; }
+  .arrow-hook   { stroke: #a855f7; stroke-width: 1.5; fill: none; marker-end: url(#arrow-purple); stroke-dasharray: 4 2; }
+  .arrow-config { stroke: #06b6d4; stroke-width: 1.2; fill: none; marker-end: url(#arrow-cyan); stroke-dasharray: 3 2; }
+  .arrow-know   { stroke: #eab308; stroke-width: 1.2; fill: none; marker-end: url(#arrow-yellow); stroke-dasharray: 3 2; }
+
+  /* Edge label */
+  .edge-label {
+    font-size: 9px;
+    fill: #64748b;
+    dominant-baseline: middle;
+    text-anchor: middle;
+  }
+
+  /* Group labels */
+  .group-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* Hover */
+  .node-group:hover rect { opacity: 0.85; cursor: default; }
+
+  /* Tooltip */
+  #tooltip {
+    position: fixed;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 11px;
+    color: #e2e8f0;
+    pointer-events: none;
+    display: none;
+    max-width: 280px;
+    line-height: 1.6;
+    z-index: 100;
+  }
+  #tooltip strong { color: #f8fafc; display: block; margin-bottom: 2px; font-size: 12px; }
+  #tooltip .tip-path { color: #94a3b8; font-size: 10px; }
+  #tooltip .tip-desc { color: #cbd5e1; margin-top: 4px; }
+</style>
+</head>
+<body>
+<h1>AIエージェント 呼び出し関係図</h1>
+<p class="subtitle">main.py を起点とした モジュール呼び出しフロー（artifacts/06_code-generation/src）</p>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#1e3a5f;border:1.5px solid #3b82f6"></div>エントリポイント</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#1a2e1a;border:1.5px solid #22c55e"></div>エージェント</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#2e1a1a;border:1.5px solid #f97316"></div>ツール</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#2a1a2e;border:1.5px solid #a855f7"></div>ハンドラ</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#1e2a2e;border:1.5px solid #06b6d4"></div>設定</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#2e2a1a;border:1.5px solid #eab308"></div>ナレッジ</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#1e2a1e;border:1.5px solid #34d399"></div>セッション</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#2e1e2e;border:1.5px solid #f472b6"></div>プロンプト</div>
+</div>
+
+<div class="diagram-wrap">
+<svg id="graph" width="1200" height="860" viewBox="0 0 1200 860">
+  <defs>
+    <marker id="arrow-blue"   markerWidth="8" markerHeight="6" refX="6" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#3b82f6"/></marker>
+    <marker id="arrow-orange" markerWidth="8" markerHeight="6" refX="6" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#f97316"/></marker>
+    <marker id="arrow-purple" markerWidth="8" markerHeight="6" refX="6" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#a855f7"/></marker>
+    <marker id="arrow-cyan"   markerWidth="8" markerHeight="6" refX="6" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#06b6d4"/></marker>
+    <marker id="arrow-yellow" markerWidth="8" markerHeight="6" refX="6" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#eab308"/></marker>
+  </defs>
+
+  <!-- =============== GROUP BACKGROUNDS =============== -->
+  <!-- agents group -->
+  <rect x="280" y="100" width="620" height="460" rx="10" fill="none" stroke="#22c55e" stroke-width="1" stroke-dasharray="6 3" opacity="0.3"/>
+  <text x="290" y="120" class="group-label" fill="#22c55e" opacity="0.6">Agents</text>
+
+  <!-- handlers group -->
+  <rect x="50" y="580" width="360" height="130" rx="10" fill="none" stroke="#a855f7" stroke-width="1" stroke-dasharray="6 3" opacity="0.3"/>
+  <text x="60" y="598" class="group-label" fill="#a855f7" opacity="0.6">Handlers</text>
+
+  <!-- tools group -->
+  <rect x="780" y="580" width="380" height="130" rx="10" fill="none" stroke="#f97316" stroke-width="1" stroke-dasharray="6 3" opacity="0.3"/>
+  <text x="790" y="598" class="group-label" fill="#f97316" opacity="0.6">Tools</text>
+
+  <!-- config group -->
+  <rect x="50" y="340" width="200" height="210" rx="10" fill="none" stroke="#06b6d4" stroke-width="1" stroke-dasharray="6 3" opacity="0.3"/>
+  <text x="60" y="358" class="group-label" fill="#06b6d4" opacity="0.6">Config / Session</text>
+
+  <!-- knowledge/prompt group -->
+  <rect x="930" y="100" width="240" height="450" rx="10" fill="none" stroke="#eab308" stroke-width="1" stroke-dasharray="6 3" opacity="0.3"/>
+  <text x="940" y="120" class="group-label" fill="#eab308" opacity="0.6">Knowledge / Prompt</text>
+
+  <!-- models group -->
+  <rect x="780" y="730" width="380" height="90" rx="10" fill="none" stroke="#818cf8" stroke-width="1" stroke-dasharray="6 3" opacity="0.3"/>
+  <text x="790" y="748" class="group-label" fill="#818cf8" opacity="0.6">Data Models</text>
+
+  <!-- =============== EDGES =============== -->
+  <!-- main → orchestrator -->
+  <line x1="600" y1="60" x2="600" y2="102" class="arrow-main"/>
+
+  <!-- orchestrator → transportation_expense_agent -->
+  <line x1="530" y1="185" x2="430" y2="222" class="arrow-tool"/>
+  <text x="473" y="199" class="edge-label">@tool</text>
+
+  <!-- orchestrator → general_expense_agent -->
+  <line x1="670" y1="185" x2="770" y2="222" class="arrow-tool"/>
+  <text x="727" y="199" class="edge-label">@tool</text>
+
+  <!-- orchestrator → session_manager (top) -->
+  <path d="M490 170 Q300 170 175 370" class="arrow-config"/>
+  <text x="305" y="258" class="edge-label">create_session</text>
+
+  <!-- orchestrator → loop_control_hook -->
+  <path d="M500 185 Q250 270 230 608" class="arrow-hook"/>
+
+  <!-- orchestrator → error_handler -->
+  <path d="M510 185 Q130 300 130 608" class="arrow-hook"/>
+
+  <!-- orchestrator → model_config -->
+  <path d="M490 175 Q160 200 150 368" class="arrow-config"/>
+
+  <!-- orchestrator → prompt_orchestrator -->
+  <path d="M710 162 Q840 162 975 158" class="arrow-know"/>
+  <text x="840" y="152" class="edge-label">system prompt</text>
+
+  <!-- transportation_expense_agent → base_agent -->
+  <line x1="400" y1="280" x2="490" y2="320" class="arrow-main"/>
+
+  <!-- general_expense_agent → base_agent -->
+  <line x1="800" y1="280" x2="710" y2="320" class="arrow-main"/>
+
+  <!-- base_agent → session_manager -->
+  <path d="M490 355 Q300 390 220 395" class="arrow-config"/>
+  <text x="340" y="368" class="edge-label">FileSessionManager</text>
+
+  <!-- base_agent → human_approval_hook -->
+  <path d="M500 380 Q300 480 330 608" class="arrow-hook"/>
+  <text x="358" y="518" class="edge-label">HumanApprovalHook</text>
+
+  <!-- base_agent → loop_control_hook -->
+  <path d="M490 375 Q270 470 220 608" class="arrow-hook"/>
+
+  <!-- base_agent → model_config -->
+  <path d="M490 365 Q280 390 200 400" class="arrow-config"/>
+
+  <!-- transportation_expense_agent → calculate_transport_fare -->
+  <path d="M360 280 Q350 500 835 608" class="arrow-tool"/>
+  <text x="540" y="505" class="edge-label">calculate_transport_fare</text>
+
+  <!-- transportation_expense_agent → generate_transport_application -->
+  <path d="M440 280 Q440 510 970 608" class="arrow-tool"/>
+
+  <!-- general_expense_agent → generate_expense_application -->
+  <path d="M860 280 Q900 450 1060 608" class="arrow-tool"/>
+
+  <!-- transportation_expense_agent → prompt_transport -->
+  <path d="M450 248 Q700 248 975 240" class="arrow-know"/>
+
+  <!-- general_expense_agent → prompt_general -->
+  <path d="M870 248 Q920 280 975 300" class="arrow-know"/>
+
+  <!-- prompt_orchestrator → reception_policies -->
+  <line x1="1050" y1="178" x2="1050" y2="218" class="arrow-know"/>
+
+  <!-- tools → data_models -->
+  <line x1="970" y1="740" x2="970" y2="760" class="arrow-config"/>
+  <line x1="860" y1="740" x2="860" y2="760" class="arrow-config"/>
+
+  <!-- tools → error_handler -->
+  <path d="M790 640 Q400 680 280 660" class="arrow-hook"/>
+
+  <!-- generate_app → application_templates -->
+  <path d="M1060 740 Q1060 760 1050 760 Q1050 780 1050 500 Q1050 480 1050 440" class="arrow-know"/>
+
+
+  <!-- =============== NODES =============== -->
+
+  <!-- main.py -->
+  <g class="node-group node-entry"
+     data-name="main.py"
+     data-path="main.py"
+     data-desc="エントリポイント。ロギング設定後 orchestrator.main() を呼び出す。KeyboardInterrupt / 例外を ErrorHandler で処理。">
+    <rect x="500" y="20" width="200" height="44" rx="6"/>
+    <text x="600" y="38" class="node-label">main.py</text>
+    <text x="600" y="54" class="node-sublabel">エントリポイント</text>
+  </g>
+
+  <!-- orchestrator.py -->
+  <g class="node-group node-agent"
+     data-name="orchestrator.py"
+     data-path="agents/orchestrator.py"
+     data-desc="AG-001 受付オーケストレータ。専門エージェント2つを @tool として保持し、strands.Agent を構築。ユーザーとの対話ループを実行する。">
+    <rect x="490" y="130" width="220" height="56" rx="6"/>
+    <text x="600" y="150" class="node-label">orchestrator.py</text>
+    <text x="600" y="166" class="node-sublabel">AG-001 受付エージェント</text>
+  </g>
+
+  <!-- transportation_expense_agent.py -->
+  <g class="node-group node-agent"
+     data-name="transportation_expense_agent.py"
+     data-path="agents/transportation_expense_agent.py"
+     data-desc="AG-002 交通費専門エージェント。@tool として宣言。base_agent.invoke_specialist_agent() を介して交通費精算処理を担当。">
+    <rect x="290" y="218" width="220" height="56" rx="6"/>
+    <text x="400" y="238" class="node-label">transportation_expense</text>
+    <text x="400" y="254" class="node-sublabel">_agent.py (AG-002)</text>
+  </g>
+
+  <!-- general_expense_agent.py -->
+  <g class="node-group node-agent"
+     data-name="general_expense_agent.py"
+     data-path="agents/general_expense_agent.py"
+     data-desc="AG-003 一般経費専門エージェント。@tool として宣言。base_agent.invoke_specialist_agent() を介して一般経費精算処理を担当。">
+    <rect x="690" y="218" width="220" height="56" rx="6"/>
+    <text x="800" y="238" class="node-label">general_expense</text>
+    <text x="800" y="254" class="node-sublabel">_agent.py (AG-003)</text>
+  </g>
+
+  <!-- base_agent.py -->
+  <g class="node-group node-agent"
+     data-name="base_agent.py"
+     data-path="agents/base_agent.py"
+     data-desc="専門エージェント共通ファクトリ。invoke_specialist_agent() でコンテキスト抽出・期限計算・エラー処理を統一。create_specialist_agent() でセッション・フック・モデルを組み立てる。">
+    <rect x="490" y="310" width="220" height="56" rx="6"/>
+    <text x="600" y="330" class="node-label">base_agent.py</text>
+    <text x="600" y="346" class="node-sublabel">専門エージェント共通ファクトリ</text>
+  </g>
+
+  <!-- session_manager.py -->
+  <g class="node-group node-session"
+     data-name="session_manager.py"
+     data-path="session/session_manager.py"
+     data-desc="SessionManagerFactory が strands の FileSessionManager を生成・管理する。会話履歴を storage/ 以下のファイルに永続化。">
+    <rect x="60" y="368" width="200" height="56" rx="6"/>
+    <text x="160" y="388" class="node-label">session_manager.py</text>
+    <text x="160" y="404" class="node-sublabel">FileSessionManager</text>
+  </g>
+
+  <!-- model_config.py -->
+  <g class="node-group node-config"
+     data-name="model_config.py"
+     data-path="config/model_config.py"
+     data-desc="lru_cache で Bedrock モデルインスタンスをシングルトン管理。strands.models.BedrockModel を返す。">
+    <rect x="60" y="440" width="200" height="56" rx="6"/>
+    <text x="160" y="460" class="node-label">model_config.py</text>
+    <text x="160" y="476" class="node-sublabel">BedrockModel (lru_cache)</text>
+  </g>
+
+  <!-- settings.py -->
+  <g class="node-group node-config"
+     data-name="settings.py"
+     data-path="config/settings.py"
+     data-desc="Pydantic-settings による各エージェントの設定値管理。環境変数で上書き可能。orchestrator / transport / expense の各パラメータを保持。">
+    <rect x="60" y="510" width="200" height="44" rx="6"/>
+    <text x="160" y="528" class="node-label">settings.py</text>
+    <text x="160" y="544" class="node-sublabel">Pydantic-settings</text>
+  </g>
+
+  <!-- error_handler.py -->
+  <g class="node-group node-handler"
+     data-name="error_handler.py"
+     data-path="handlers/error_handler.py"
+     data-desc="ErrorHandler (static methods) と LoopLimitError クラスを提供。各エラー種別ごとに専用ハンドラを持つ。">
+    <rect x="60" y="610" width="180" height="56" rx="6"/>
+    <text x="150" y="630" class="node-label">error_handler.py</text>
+    <text x="150" y="646" class="node-sublabel">ErrorHandler / LoopLimitError</text>
+  </g>
+
+  <!-- loop_control_hook.py -->
+  <g class="node-group node-handler"
+     data-name="loop_control_hook.py"
+     data-path="handlers/loop_control_hook.py"
+     data-desc="AfterModelCallEvent を購読。ループ回数をカウントし max_iterations を超えたら LoopLimitError を raise する。">
+    <rect x="60" y="686" width="180" height="56" rx="6"/>
+    <text x="150" y="706" class="node-label">loop_control_hook.py</text>
+    <text x="150" y="722" class="node-sublabel">AfterModelCallEvent</text>
+  </g>
+
+  <!-- human_approval_hook.py -->
+  <g class="node-group node-handler"
+     data-name="human_approval_hook.py"
+     data-path="handlers/human_approval_hook.py"
+     data-desc="BeforeToolCallEvent を購読。generate_*_application ツール呼び出し前に stdin で人間承認を取得。未承認時は event.cancel_tool をセット。">
+    <rect x="268" y="610" width="180" height="56" rx="6"/>
+    <text x="358" y="630" class="node-label">human_approval_hook.py</text>
+    <text x="358" y="646" class="node-sublabel">BeforeToolCallEvent (HITL)</text>
+  </g>
+
+  <!-- calculate_transport_fare -->
+  <g class="node-group node-tool"
+     data-name="transport_calculator.py"
+     data-path="tools/transport_calculator.py"
+     data-desc="TL-001 交通費計算ツール (@tool)。data/train_fares.json / fixed_fares.json を参照。Pydantic で入力検証後、電車 or 固定費を返す。">
+    <rect x="790" y="610" width="200" height="56" rx="6"/>
+    <text x="890" y="630" class="node-label">transport_calculator.py</text>
+    <text x="890" y="646" class="node-sublabel">calculate_transport_fare @tool</text>
+  </g>
+
+  <!-- application_generator -->
+  <g class="node-group node-tool"
+     data-name="application_generator.py"
+     data-path="tools/application_generator.py"
+     data-desc="TL-002 申請書生成ツール (@tool)。openpyxl で xlsx テンプレートに書き込み、申請書ファイルを output/ に保存する。">
+    <rect x="1010" y="610" width="200" height="56" rx="6"/>
+    <text x="1110" y="630" class="node-label">application_generator.py</text>
+    <text x="1110" y="646" class="node-sublabel">generate_*_application @tool</text>
+  </g>
+
+  <!-- data_models.py -->
+  <g class="node-group node-model"
+     data-name="data_models.py"
+     data-path="models/data_models.py"
+     data-desc="全ドメインの Pydantic モデル定義。TransportCalculatorInput, TransportSegment, SessionState など。入力バリデーション・正規化ロジックを集約。">
+    <rect x="790" y="760" width="200" height="56" rx="6"/>
+    <text x="890" y="780" class="node-label">data_models.py</text>
+    <text x="890" y="796" class="node-sublabel">Pydantic Models (全ドメイン)</text>
+  </g>
+
+  <!-- prompt_orchestrator -->
+  <g class="node-group node-prompt"
+     data-name="prompt_orchestrator.py"
+     data-path="prompt/prompt_orchestrator.py"
+     data-desc="AG-001 のシステムプロンプト生成。reception_policies から申請種別ルールを取得して組み込む。">
+    <rect x="940" y="130" width="220" height="44" rx="6"/>
+    <text x="1050" y="148" class="node-label">prompt_orchestrator.py</text>
+    <text x="1050" y="164" class="node-sublabel">AG-001 システムプロンプト</text>
+  </g>
+
+  <!-- reception_policies -->
+  <g class="node-group node-knowledge"
+     data-name="reception_policies.py"
+     data-path="knowledge/reception_policies.py"
+     data-desc="KN-001 申請種別判定ルール定数。交通費 vs 一般経費の振り分け基準を文字列で定義。">
+    <rect x="940" y="218" width="220" height="44" rx="6"/>
+    <text x="1050" y="236" class="node-label">reception_policies.py</text>
+    <text x="1050" y="252" class="node-sublabel">KN-001 申請種別ルール</text>
+  </g>
+
+  <!-- prompt_transport -->
+  <g class="node-group node-prompt"
+     data-name="prompt_transportation_expense.py"
+     data-path="prompt/prompt_transportation_expense.py"
+     data-desc="AG-002 の動的システムプロンプト生成。application_date と deadline_date を受け取り文字列テンプレートに埋め込む。">
+    <rect x="940" y="280" width="220" height="44" rx="6"/>
+    <text x="1050" y="298" class="node-label">prompt_transportation</text>
+    <text x="1050" y="314" class="node-sublabel">_expense.py (AG-002 prompt)</text>
+  </g>
+
+  <!-- prompt_general -->
+  <g class="node-group node-prompt"
+     data-name="prompt_general_expense.py"
+     data-path="prompt/prompt_general_expense.py"
+     data-desc="AG-003 の動的システムプロンプト生成。application_date と deadline_date を受け取り文字列テンプレートに埋め込む。">
+    <rect x="940" y="342" width="220" height="44" rx="6"/>
+    <text x="1050" y="360" class="node-label">prompt_general</text>
+    <text x="1050" y="376" class="node-sublabel">_expense.py (AG-003 prompt)</text>
+  </g>
+
+  <!-- application_templates -->
+  <g class="node-group node-knowledge"
+     data-name="application_templates.py"
+     data-path="knowledge/application_templates.py"
+     data-desc="KN-002/003 xlsx テンプレートのファイルパス定数。generate_*_application が参照して openpyxl でロードする。">
+    <rect x="940" y="404" width="220" height="44" rx="6"/>
+    <text x="1050" y="422" class="node-label">application_templates.py</text>
+    <text x="1050" y="438" class="node-sublabel">KN-002/003 テンプレートパス</text>
+  </g>
+
+  <!-- approval_policies -->
+  <g class="node-group node-knowledge"
+     data-name="approval_policies.py"
+     data-path="knowledge/approval_policies.py"
+     data-desc="KN-005/006 上長承認閾値定数。交通費・一般経費それぞれの承認必要金額を定義。">
+    <rect x="940" y="466" width="220" height="44" rx="6"/>
+    <text x="1050" y="484" class="node-label">approval_policies.py</text>
+    <text x="1050" y="500" class="node-sublabel">KN-005/006 承認閾値</text>
+  </g>
+
+</svg>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+const tooltip = document.getElementById('tooltip');
+const nodes = document.querySelectorAll('.node-group');
+
+nodes.forEach(node => {
+  node.addEventListener('mouseenter', e => {
+    const name = node.dataset.name;
+    const path = node.dataset.path;
+    const desc = node.dataset.desc;
+    tooltip.innerHTML = `<strong>${name}</strong><div class="tip-path">${path}</div><div class="tip-desc">${desc}</div>`;
+    tooltip.style.display = 'block';
+    moveTip(e);
+  });
+  node.addEventListener('mousemove', moveTip);
+  node.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+});
+
+function moveTip(e) {
+  let x = e.clientX + 14, y = e.clientY + 10;
+  const tipW = 280, tipH = 90;
+  if (x + tipW > window.innerWidth) x = e.clientX - tipW - 8;
+  if (y + tipH > window.innerHeight) y = e.clientY - tipH - 8;
+  tooltip.style.left = x + 'px';
+  tooltip.style.top  = y + 'px';
+}
+</script>
+</body>
+</html>
